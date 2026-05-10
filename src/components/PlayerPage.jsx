@@ -59,21 +59,46 @@ export default function PlayerPage({ slug, onNavigate }) {
       setLoading(true)
       setError(null)
       try {
-        const [{ data: playerData, error: e1 }] = await Promise.all([
-          supabase.from('players').select('*').eq('slug', slug).single()
-        ])
+        // Resolve player by slug first (single query, no Promise.all needed here)
+        const { data: playerData, error: e1 } = await supabase
+          .from('players')
+          .select('*')
+          .eq('slug', slug)
+          .single()
         if (e1) throw e1
         setPlayer(playerData)
 
+        // Parallel fetch of all supplementary data using players.id
         const [statsRes, scoreRes, mentionsRes, evidenceRes] = await Promise.all([
-          supabase.from('player_season_stats').select('*').eq('player_id', playerData.id).order('season', { ascending: false }).limit(1).single(),
-          supabase.from('v_latest_injustice_scores').select('*').eq('player_id', playerData.id).single(),
-          supabase.from('social_mentions_daily').select('date,negative_ratio,total_mentions').eq('player_id', playerData.id).order('date', { ascending: true }).limit(30),
-          supabase.from('evidence_posts').select('*').eq('player_id', playerData.id).order('created_at', { ascending: false }).limit(6)
+          supabase
+            .from('player_season_stats')
+            .select('*')
+            .eq('player_id', playerData.id)
+            .order('season', { ascending: false })
+            .limit(1)
+            .single(),
+          supabase
+            .from('v_latest_injustice_scores')
+            .select('*')
+            .eq('player_id', playerData.id)
+            .single(),
+          supabase
+            .from('social_mentions_daily')
+            .select('mention_date,negative_ratio,total_mentions')
+            .eq('player_id', playerData.id)
+            .order('mention_date', { ascending: true })
+            .limit(30),
+          supabase
+            // Fix: use correct column names (content, sentiment_label, created_at)
+            .from('evidence_posts')
+            .select('id, source, content, sentiment_label, abuse_score, created_at')
+            .eq('player_id', playerData.id)
+            .order('created_at', { ascending: false })
+            .limit(6),
         ])
 
-        if (statsRes.data) setStats(statsRes.data)
-        if (scoreRes.data) setScore(scoreRes.data)
+        if (statsRes.data)    setStats(statsRes.data)
+        if (scoreRes.data)    setScore(scoreRes.data)
         if (mentionsRes.data) setDailyMentions(mentionsRes.data)
         if (evidenceRes.data) setEvidence(evidenceRes.data)
       } catch (err) {
@@ -148,8 +173,8 @@ export default function PlayerPage({ slug, onNavigate }) {
               <p className="spark-label">Negativity trend — last 30 days</p>
               <Sparkline data={dailyMentions} width={320} height={56} />
               <div className="spark-axis">
-                <span>{dailyMentions[0]?.date}</span>
-                <span>{dailyMentions[dailyMentions.length - 1]?.date}</span>
+                <span>{dailyMentions[0]?.mention_date}</span>
+                <span>{dailyMentions[dailyMentions.length - 1]?.mention_date}</span>
               </div>
             </div>
           )}
@@ -165,12 +190,12 @@ export default function PlayerPage({ slug, onNavigate }) {
           )}
           {stats && (
             <div className="stats-grid">
-              <StatCard label="npxG" value={stats.npxg?.toFixed(2)} sub="non-penalty expected goals" />
-              <StatCard label="xA" value={stats.xa?.toFixed(2)} sub="expected assists" />
+              <StatCard label="npxG" value={stats.np_xg_per90?.toFixed(2)} sub="non-penalty expected goals" />
+              <StatCard label="xA" value={stats.xa_per90?.toFixed(2)} sub="expected assists" />
               <StatCard label="Prog. carries" value={stats.progressive_carries} sub="per 90" />
               <StatCard label="Prog. passes" value={stats.progressive_passes} sub="per 90" />
-              <StatCard label="Press %" value={stats.press_regain_pct ? `${stats.press_regain_pct}%` : null} sub="pressing regain rate" />
-              <StatCard label="Mins played" value={stats.minutes_played} sub={`Season ${stats.season ?? ''}`} />
+              <StatCard label="Press %" value={stats.pressures_per90 ? `${stats.pressures_per90}` : null} sub="pressures per 90" />
+              <StatCard label="Mins played" value={stats.appearances != null ? `${stats.appearances} apps` : null} sub={`Season ${stats.season ?? ''}`} />
             </div>
           )}
         </div>
@@ -186,6 +211,7 @@ export default function PlayerPage({ slug, onNavigate }) {
                 <div className="evidence-meta">
                   <span className="tag tag--source">{post.source}</span>
                   <span className="evidence-date">{post.created_at?.slice(0, 10)}</span>
+                  {/* Fix: correct column names from schema (content, sentiment_label) */}
                   <span className="tag tag--sentiment">{post.sentiment_label}</span>
                 </div>
                 <p className="evidence-text">{post.content}</p>
