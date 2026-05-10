@@ -7,18 +7,23 @@
 -- v_latest_injustice_scores
 -- Most recent injustice score per player, joined to player info.
 -- Used by LeaderboardPage.jsx
+-- Fix: alias performance_pctile → performance_percentile so the
+--      frontend field name matches without defensive fallbacks.
+--      Also expose p.name as player_name for ComparePage search.
 -- ------------------------------------------------------------
 create or replace view public.v_latest_injustice_scores as
 select
-  p.id            as player_id,
+  p.id                     as player_id,
   p.slug,
   p.name,
+  p.name                   as player_name,       -- alias used by ComparePage search results
   p.club,
   p.league,
   p.position,
+  p.nationality,
   p.photo_url,
   i.hate_score,
-  i.performance_pctile,
+  i.performance_pctile     as performance_percentile,  -- renamed to match frontend
   i.expectation_score,
   i.injustice_score,
   i.bias_gap,
@@ -54,12 +59,15 @@ order by player_id, mention_date asc;
 -- v_player_full
 -- Player info + latest season stats + latest injustice score.
 -- Used by PlayerPage.jsx and ComparePage.jsx
+-- Fix: expose performance_pctile as performance_percentile here
+--      too, for consistency with v_latest_injustice_scores.
 -- ------------------------------------------------------------
 create or replace view public.v_player_full as
 select
   p.id            as player_id,
   p.slug,
   p.name,
+  p.name          as player_name,
   p.club,
   p.league,
   p.position,
@@ -80,7 +88,7 @@ select
   s.interceptions_per90,
   s.pressures_per90,
   s.save_pct,
-  s.performance_pctile,
+  s.performance_pctile     as performance_percentile,
   s.peer_group_size,
   i.hate_score,
   i.injustice_score,
