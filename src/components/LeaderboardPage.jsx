@@ -63,8 +63,11 @@ function SkeletonRow() {
   );
 }
 
+const PAGE_SIZE = 50;
+
 export default function LeaderboardPage({ onNavigate }) {
   const [players, setPlayers] = useState([]);
+  const [totalCount, setTotalCount] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [league, setLeague] = useState("All leagues");
@@ -75,15 +78,16 @@ export default function LeaderboardPage({ onNavigate }) {
     setError(null);
 
     try {
-      const { data, error: sbError } = await supabase
+      const { data, error: sbError, count } = await supabase
         .from("v_latest_injustice_scores")
-        .select("*")
+        .select("*", { count: "exact" })
         .order("injustice_score", { ascending: false })
-        .limit(50);
+        .limit(PAGE_SIZE);
 
       if (sbError) throw sbError;
 
       setPlayers(data || []);
+      setTotalCount(count);
     } catch (err) {
       setError(err.message || "Unknown error");
       setPlayers([]);
@@ -98,9 +102,10 @@ export default function LeaderboardPage({ onNavigate }) {
 
   const filtered = useMemo(() => {
     return players.filter((p) => {
-      const playerName = p.player_name || p.name || "";
+      // View exposes p.name; also keep player_name alias as belt-and-braces
+      const playerName = p.name || p.player_name || "";
       const club = p.club || "";
-      const leagueName = p.league || p.competition_name || "";
+      const leagueName = p.league || "";
 
       const matchesSearch =
         playerName.toLowerCase().includes(search.toLowerCase()) ||
@@ -183,6 +188,13 @@ export default function LeaderboardPage({ onNavigate }) {
         </div>
       )}
 
+      {/* Row count indicator */}
+      {!loading && !error && totalCount !== null && totalCount > PAGE_SIZE && (
+        <p className="row-count-notice" role="status">
+          Showing top {PAGE_SIZE} of {totalCount} players
+        </p>
+      )}
+
       <div className="table-wrap">
         <table className="leaderboard-table" aria-label="Injustice leaderboard">
           <thead>
@@ -205,7 +217,7 @@ export default function LeaderboardPage({ onNavigate }) {
                   <div className="empty-state">
                     <p>
                       No players found
-                      {search ? ` matching "${search}"` : ""}
+                      {search ? ` matching “${search}”` : ""}
                       {league !== "All leagues" ? ` in ${league}` : ""}.
                     </p>
                   </div>
@@ -213,17 +225,17 @@ export default function LeaderboardPage({ onNavigate }) {
               </tr>
             ) : (
               filtered.map((p, i) => {
-                const playerName = p.player_name || p.name || "Unknown player";
+                const playerName = p.name || p.player_name || "Unknown player";
                 const playerMeta = [p.position, p.nationality]
                   .filter(Boolean)
                   .join(" · ");
                 const playerSlug = p.slug || p.player_id;
-                const performancePercentile =
-                  p.performance_percentile ?? p.performance_score ?? null;
+                // Fix: view now exposes performance_percentile directly
+                const performancePercentile = p.performance_percentile ?? null;
 
                 return (
                   <tr
-                    key={p.player_id || p.id || i}
+                    key={p.player_id || i}
                     className="leaderboard-row"
                     tabIndex={0}
                     onClick={() => onNavigate(`player/${playerSlug}`)}
