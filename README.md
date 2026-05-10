@@ -1,64 +1,104 @@
-# ⚽ Football Bias Tracker
+# Football Bias Tracker
 
-A heuristics web app that detects disproportionate social media hate directed at footballers and benchmarks it against real on-pitch performance data — exposing bias in football discourse.
+A heuristics dashboard that finds footballers receiving disproportionate social media hate, compares their stats against peers, and scores the injustice of the criticism.
 
-## What it does
+## Tech Stack
 
-- Pulls daily social mentions and calculates a **hate score** (negative post ratio per 10k mentions)
-- Benchmarks each player's stats against **position-matched peers** in the same league and season
-- Computes a **bias gap** — the delta between how much hate they receive vs how poor their form actually is
-- Ranks players by an **injustice score** so the most unfairly criticised players surface at the top
+| Layer | Technology |
+|---|---|
+| Frontend | React 18 + Vite |
+| Database | Supabase (PostgreSQL) |
+| Styling | Custom CSS design system (`dashboard.css`) |
+| Routing | Hash-based SPA routing (no React Router needed) |
+| Hosting | Netlify / Cloudflare Pages (static build) |
 
-## Stack
+## Pages
 
-- **Frontend**: React 18 + Vite
-- **Backend/DB**: Supabase (Postgres)
-- **Styling**: CSS custom properties (Nexus design system, light + dark mode)
-- **Charts**: Inline SVG sparklines
-- **Routing**: Hash-based SPA (`#`, `#player/<slug>`, `#methodology`)
+| Route | Component | Purpose |
+|---|---|---|
+| `#` | LeaderboardPage | Weekly injustice rankings |
+| `#player/<slug>` | PlayerPage | Player detail with stats, social trend, evidence |
+| `#compare/<slugA>/<slugB>` | ComparePage | Side-by-side player comparison |
+| `#methodology` | MethodologyPage | How the injustice score is calculated |
 
-## Project structure
+## Getting Started
 
-```
-src/
-  lib/
-    supabase.js          # Supabase client
-  components/
-    Nav.jsx              # Top nav with logo + theme toggle
-    LeaderboardPage.jsx  # Ranked injustice table with filters
-    PlayerPage.jsx       # Player detail — stats, sentiment trend, evidence
-    MethodologyPage.jsx  # How the score is calculated + caveats
-  App.jsx                # Hash router
-  main.jsx               # React entry point
-  dashboard.css          # Full design system + component styles
-index.html
-vite.config.js
-.env.example
-```
-
-## Setup
+### 1. Clone & install
 
 ```bash
+git clone https://github.com/TariqH19/football-bias-tracker-app.git
+cd football-bias-tracker-app
 npm install
-cp .env.example .env          # add your Supabase URL + anon key
+```
+
+### 2. Set up Supabase
+
+See [`supabase/README.md`](./supabase/README.md) for full instructions.
+
+Short version:
+- Create a Supabase project
+- Run `supabase/schema.sql` → `supabase/views.sql` → `supabase/seed.sql` in the SQL Editor
+- Copy `.env.example` to `.env` and fill in your URL + anon key
+
+### 3. Run locally
+
+```bash
 npm run dev
+# → http://localhost:5173
 ```
 
-## Environment variables
+### 4. Build for production
+
+```bash
+npm run build
+# Output: dist/
+```
+
+Deploy `dist/` to Netlify, Cloudflare Pages, or any static host.
+
+## Environment Variables
+
+| Variable | Description |
+|---|---|
+| `VITE_SUPABASE_URL` | Your Supabase project URL |
+| `VITE_SUPABASE_ANON_KEY` | Your Supabase anon (public) key |
+
+Never commit `.env`. Use `.env.example` as the template.
+
+## Injustice Score
 
 ```
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
+injustice_score = hate_score - expectation_score
+bias_gap        = clamp((injustice_score / 5) × 100, -100, +100)
 ```
 
-## Database views required
+A positive score means the player is criticised more than their performances justify.
+See [Methodology](src/components/MethodologyPage.jsx) for full details.
 
-- `v_latest_injustice_scores` — joined view of players + latest score snapshot
-- `players` — player metadata (name, club, league, position, nationality, slug)
-- `player_season_stats` — season stats per player (npxg, xa, prog_carries, etc.)
-- `social_mentions_daily` — daily mention + negative_ratio snapshots
-- `evidence_posts` — individual flagged posts with sentiment labels
+## Project Structure
 
-## Deployment
-
-Deploy to **Cloudflare Pages** or **Vercel**. Set env vars in the dashboard. Build command: `npm run build`. Output dir: `dist`.
+```
+football-bias-tracker-app/
+├── .env.example              ← copy to .env, fill in Supabase credentials
+├── .eslintrc.cjs             ← ESLint config
+├── index.html
+├── vite.config.js
+├── package.json
+├── supabase/
+│   ├── README.md             ← Supabase setup guide
+│   ├── schema.sql            ← All tables, indexes, RLS
+│   ├── views.sql             ← Computed views used by the frontend
+│   └── seed.sql              ← 10 demo players with realistic data
+└── src/
+    ├── main.jsx
+    ├── App.jsx               ← Hash router + theme toggle
+    ├── dashboard.css         ← Full design system (Nexus tokens)
+    ├── lib/
+    │   └── supabase.js       ← Supabase client init
+    └── components/
+        ├── Nav.jsx
+        ├── LeaderboardPage.jsx
+        ├── PlayerPage.jsx
+        ├── ComparePage.jsx
+        └── MethodologyPage.jsx
+```

@@ -1,10 +1,7 @@
 node_modules/
 dist/
 .env
-.env.example
 .env.local
 .DS_Store
 *.log
 .vite/
-package-lock.json
-package.json
