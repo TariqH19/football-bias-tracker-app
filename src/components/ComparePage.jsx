@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase.js'
 
-// ─── Stat categories shown in comparison ───────────────────────────────────
+// ─── Stat categories shown in comparison ────────────────────────────────────────────
 const STAT_GROUPS = [
   {
     label: 'Attacking',
@@ -43,7 +43,7 @@ const STAT_GROUPS = [
   },
 ]
 
-// ─── Single bar comparing two values ───────────────────────────────────────
+// ─── Single bar comparing two values ────────────────────────────────────────────────
 function CompareBar({ labelA, valA, labelB, valB, higherIsBetter = true }) {
   const a = parseFloat(valA) || 0
   const b = parseFloat(valB) || 0
@@ -79,19 +79,21 @@ function CompareBar({ labelA, valA, labelB, valB, higherIsBetter = true }) {
   )
 }
 
-// ─── Player search autocomplete ────────────────────────────────────────────
+// ─── Player search autocomplete ──────────────────────────────────────────────────────
 function PlayerSearch({ id, label, value, onSelect, exclude }) {
-  const [query, setQuery] = useState(value?.player_name ?? '')
+  const [query, setQuery] = useState(value?.name ?? '')
   const [results, setResults] = useState([])
   const [open, setOpen] = useState(false)
 
+  // Fix: players table uses 'name' column (not 'player_name').
+  // Fix: exclude filter uses 'id' (the PK on players table, not player_id).
   const search = useCallback(async (q) => {
     if (q.length < 2) { setResults([]); return }
     const { data } = await supabase
       .from('players')
-      .select('player_id, player_name, club, position, slug')
-      .ilike('player_name', `%${q}%`)
-      .neq('player_id', exclude?.player_id ?? '')
+      .select('id, name, club, position, slug')
+      .ilike('name', `%${q}%`)
+      .neq('id', exclude?.id ?? '')
       .limit(8)
     setResults(data ?? [])
   }, [exclude])
@@ -102,7 +104,7 @@ function PlayerSearch({ id, label, value, onSelect, exclude }) {
   }, [query, search])
 
   const pick = (player) => {
-    setQuery(player.player_name)
+    setQuery(player.name)
     setResults([])
     setOpen(false)
     onSelect(player)
@@ -129,12 +131,12 @@ function PlayerSearch({ id, label, value, onSelect, exclude }) {
         <ul id={`${id}-listbox`} className="search-dropdown" role="listbox">
           {results.map(p => (
             <li
-              key={p.player_id}
+              key={p.id}
               role="option"
               className="search-option"
               onMouseDown={() => pick(p)}
             >
-              <span className="search-option-name">{p.player_name}</span>
+              <span className="search-option-name">{p.name}</span>
               <span className="search-option-meta">{p.position} · {p.club}</span>
             </li>
           ))}
@@ -144,7 +146,7 @@ function PlayerSearch({ id, label, value, onSelect, exclude }) {
   )
 }
 
-// ─── Injustice verdict banner ───────────────────────────────────────────────
+// ─── Injustice verdict banner ──────────────────────────────────────────────────────
 function InjusticeVerdict({ playerA, playerB, statsA, statsB }) {
   if (!statsA || !statsB) return null
   const scoreA = statsA.injustice_score ?? 0
@@ -157,8 +159,14 @@ function InjusticeVerdict({ playerA, playerB, statsA, statsB }) {
   const gapHate = hateA - hateB
   const gapPerf = perfA - perfB
 
-  // If A gets significantly more hate despite better/comparable performance
-  const biased = Math.abs(gapHate) >= 1.5 && ((gapHate > 0 && gapPerf >= -5) || (gapHate < 0 && gapPerf <= 5))
+  // Fix: bias requires a meaningful hate gap (>=1.5) AND a performance gap
+  // that does NOT justify the extra hate — i.e. the more-hated player is
+  // not performing substantially worse (within 15 percentile points).
+  const HATE_THRESHOLD = 1.5
+  const PERF_JUSTIFY_THRESHOLD = 15
+  const moreHatedAHasUnfairHate = gapHate >= HATE_THRESHOLD && gapPerf >= -PERF_JUSTIFY_THRESHOLD
+  const moreHatedBHasUnfairHate = gapHate <= -HATE_THRESHOLD && gapPerf <= PERF_JUSTIFY_THRESHOLD
+  const biased = moreHatedAHasUnfairHate || moreHatedBHasUnfairHate
 
   if (!biased) {
     return (
@@ -170,25 +178,22 @@ function InjusticeVerdict({ playerA, playerB, statsA, statsB }) {
   }
 
   const moreHated = gapHate > 0 ? playerA : playerB
-  const betterPerformer = gapPerf > 0 ? playerA : playerB
-  const samePlayer = moreHated.player_name === betterPerformer.player_name
+  const other     = gapHate > 0 ? playerB : playerA
 
   return (
     <div className="verdict verdict-bias">
       <strong>
-        {moreHated.player_name} receives disproportionate hate
+        {moreHated.name} receives disproportionate hate
       </strong>
       <p>
-        {samePlayer
-          ? `${moreHated.player_name} outperforms ${(gapHate > 0 ? playerB : playerA).player_name} by ${Math.abs(gapPerf).toFixed(0)} percentile points yet absorbs ${Math.abs(gapHate).toFixed(1)}× more online negativity.`
-          : `${moreHated.player_name} is performing at a similar level to ${(gapHate > 0 ? playerB : playerA).player_name} but attracts significantly more social media abuse.`
-        }
+        {moreHated.name} is performing at a similar or better level to {other.name} yet
+        absorbs {Math.abs(gapHate).toFixed(1)} more hate score points online.
       </p>
     </div>
   )
 }
 
-// ─── Main page ──────────────────────────────────────────────────────────────
+// ─── Main page ──────────────────────────────────────────────────────────────────────
 export default function ComparePage({ initialSlugA, initialSlugB, onNavigate }) {
   const [playerA, setPlayerA] = useState(null)
   const [playerB, setPlayerB] = useState(null)
@@ -214,7 +219,7 @@ export default function ComparePage({ initialSlugA, initialSlugB, onNavigate }) 
       if (!player) {
         const { data, error: e } = await supabase
           .from('players')
-          .select('player_id, player_name, club, position, nationality, slug')
+          .select('id, name, club, position, nationality, slug')
           .eq('slug', slugOrObj)
           .single()
         if (e) throw e
@@ -222,11 +227,11 @@ export default function ComparePage({ initialSlugA, initialSlugB, onNavigate }) 
       }
       setPlayer(player)
 
-      // Latest injustice scores view
+      // Latest injustice scores view — keyed on players.id
       const { data: scores, error: e2 } = await supabase
         .from('v_latest_injustice_scores')
         .select('*')
-        .eq('player_id', player.player_id)
+        .eq('player_id', player.id)
         .single()
       if (e2 && e2.code !== 'PGRST116') throw e2
 
@@ -234,7 +239,7 @@ export default function ComparePage({ initialSlugA, initialSlugB, onNavigate }) 
       const { data: seasonStats, error: e3 } = await supabase
         .from('player_season_stats')
         .select('*')
-        .eq('player_id', player.player_id)
+        .eq('player_id', player.id)
         .order('season', { ascending: false })
         .limit(1)
         .single()
@@ -264,7 +269,7 @@ export default function ComparePage({ initialSlugA, initialSlugB, onNavigate }) 
       <div className="page-header">
         <div>
           <h1 id="compare-title" className="page-title">Compare Players</h1>
-          <p className="page-subtitle">Side-by-side stats and social pressure — see who's treated fairly</p>
+          <p className="page-subtitle">Side-by-side stats and social pressure — see who’s treated fairly</p>
         </div>
         <button
           className="btn btn-ghost"
@@ -287,7 +292,7 @@ export default function ComparePage({ initialSlugA, initialSlugB, onNavigate }) 
           />
           {playerA && (
             <div className="compare-player-badge">
-              <span className="compare-player-name">{playerA.player_name}</span>
+              <span className="compare-player-name">{playerA.name}</span>
               <span className="compare-player-meta">{playerA.position} · {playerA.club}</span>
               {loadingA && <span className="compare-loading-dot" aria-label="Loading" />}
             </div>
@@ -306,7 +311,7 @@ export default function ComparePage({ initialSlugA, initialSlugB, onNavigate }) 
           />
           {playerB && (
             <div className="compare-player-badge compare-player-badge-b">
-              <span className="compare-player-name">{playerB.player_name}</span>
+              <span className="compare-player-name">{playerB.name}</span>
               <span className="compare-player-meta">{playerB.position} · {playerB.club}</span>
               {loadingB && <span className="compare-loading-dot" aria-label="Loading" />}
             </div>
@@ -333,16 +338,16 @@ export default function ComparePage({ initialSlugA, initialSlugB, onNavigate }) 
         <div key={group.label} className="compare-group">
           <h2 className="compare-group-label">{group.label}</h2>
           <div className="compare-group-header" aria-hidden="true">
-            <span>{playerA.player_name}</span>
+            <span>{playerA.name}</span>
             <span />
-            <span style={{ textAlign: 'right' }}>{playerB.player_name}</span>
+            <span style={{ textAlign: 'right' }}>{playerB.name}</span>
           </div>
           {group.stats.map(({ key, label }) => (
             <div key={key} className="compare-stat-row">
               <span className="compare-stat-label">{label}</span>
               <CompareBar
-                labelA={playerA.player_name}
-                labelB={playerB.player_name}
+                labelA={playerA.name}
+                labelB={playerB.name}
                 valA={statsA?.[key]}
                 valB={statsB?.[key]}
                 higherIsBetter={key !== 'hate_score' && key !== 'negative_ratio' && key !== 'abuse_count'}
