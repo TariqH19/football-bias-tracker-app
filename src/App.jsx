@@ -3,11 +3,16 @@ import Nav from './components/Nav.jsx'
 import LeaderboardPage from './components/LeaderboardPage.jsx'
 import PlayerPage from './components/PlayerPage.jsx'
 import MethodologyPage from './components/MethodologyPage.jsx'
+import ComparePage from './components/ComparePage.jsx'
 
 function getRoute() {
   const hash = window.location.hash.replace('#', '') || ''
   if (hash.startsWith('player/')) return { page: 'player', slug: hash.replace('player/', '') }
   if (hash === 'methodology') return { page: 'methodology' }
+  if (hash.startsWith('compare')) {
+    const parts = hash.replace('compare', '').replace(/^\//, '').split('/')
+    return { page: 'compare', slugA: parts[0] || null, slugB: parts[1] || null }
+  }
   return { page: 'leaderboard' }
 }
 
@@ -40,9 +45,16 @@ export default function App() {
         onNavigate={navigate}
       />
       <main id="main-content">
-        {route.page === 'leaderboard' && <LeaderboardPage onNavigate={navigate} />}
-        {route.page === 'player' && <PlayerPage slug={route.slug} onNavigate={navigate} />}
-        {route.page === 'methodology' && <MethodologyPage onNavigate={navigate} />}
+        {route.page === 'leaderboard'  && <LeaderboardPage onNavigate={navigate} />}
+        {route.page === 'player'       && <PlayerPage slug={route.slug} onNavigate={navigate} />}
+        {route.page === 'methodology'  && <MethodologyPage onNavigate={navigate} />}
+        {route.page === 'compare'      && (
+          <ComparePage
+            initialSlugA={route.slugA}
+            initialSlugB={route.slugB}
+            onNavigate={navigate}
+          />
+        )}
       </main>
     </div>
   )

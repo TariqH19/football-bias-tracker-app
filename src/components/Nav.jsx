@@ -14,40 +14,75 @@ const MoonIcon = () => (
 )
 
 const Logo = () => (
-  <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-label="Football Bias Tracker logo">
-    <circle cx="14" cy="14" r="13" stroke="currentColor" strokeWidth="1.5"/>
-    <path d="M14 4 L18 10 L14 16 L10 10 Z" fill="currentColor" opacity="0.9"/>
-    <path d="M14 16 L20 18 L18 24 L10 24 L8 18 Z" fill="currentColor" opacity="0.5"/>
-    <circle cx="14" cy="14" r="2" fill="var(--color-bg)"/>
+  <svg
+    viewBox="0 0 32 32"
+    width="28"
+    height="28"
+    fill="none"
+    aria-label="Football Bias Tracker logo"
+    role="img"
+  >
+    {/* Football hex patch mark */}
+    <circle cx="16" cy="16" r="13" stroke="currentColor" strokeWidth="2"/>
+    <polygon
+      points="16,7 19.8,10.4 18.5,15 13.5,15 12.2,10.4"
+      stroke="currentColor" strokeWidth="1.5" fill="none"
+    />
+    <line x1="16" y1="15" x2="16" y2="20" stroke="currentColor" strokeWidth="1.5"/>
+    <line x1="13.5" y1="15" x2="11" y2="19" stroke="currentColor" strokeWidth="1.5"/>
+    <line x1="18.5" y1="15" x2="21" y2="19" stroke="currentColor" strokeWidth="1.5"/>
+    {/* Balance scale arm */}
+    <line x1="7" y1="23" x2="25" y2="23" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+    <line x1="16" y1="20" x2="16" y2="23" stroke="currentColor" strokeWidth="1.5"/>
+    <circle cx="8" cy="23" r="1.5" fill="currentColor"/>
+    <circle cx="24" cy="23" r="1.5" fill="currentColor"/>
   </svg>
 )
 
 export default function Nav({ theme, onThemeToggle, currentPage, onNavigate }) {
+  const navItems = [
+    { id: 'leaderboard', label: 'Rankings'    },
+    { id: 'compare',     label: 'Compare'     },
+    { id: 'methodology', label: 'Methodology' },
+  ]
+
   return (
-    <header className="nav">
-      <a href="#" className="nav-brand" onClick={e => { e.preventDefault(); onNavigate('') }} aria-label="Football Bias Tracker home">
-        <Logo />
-        <span className="nav-title">Bias Tracker</span>
-      </a>
-      <nav className="nav-links" aria-label="Primary navigation">
+    <header className="app-header" role="banner">
+      <a href="#main-content" className="skip-link">Skip to content</a>
+      <div className="header-inner">
         <a
           href="#"
-          className={`nav-link${currentPage === 'leaderboard' ? ' active' : ''}`}
+          className="brand"
           onClick={e => { e.preventDefault(); onNavigate('') }}
-        >Rankings</a>
-        <a
-          href="#methodology"
-          className={`nav-link${currentPage === 'methodology' ? ' active' : ''}`}
-          onClick={e => { e.preventDefault(); onNavigate('methodology') }}
-        >Methodology</a>
-      </nav>
-      <button
-        className="theme-toggle"
-        onClick={onThemeToggle}
-        aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-      >
-        {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
-      </button>
+          aria-label="Football Bias Tracker — home"
+        >
+          <Logo />
+          <span className="brand-name">Bias<strong>Tracker</strong></span>
+        </a>
+
+        <nav className="main-nav" aria-label="Main navigation">
+          {navItems.map(item => (
+            <a
+              key={item.id}
+              href={`#${item.id}`}
+              className={`nav-link${currentPage === item.id ? ' nav-link-active' : ''}`}
+              aria-current={currentPage === item.id ? 'page' : undefined}
+              onClick={e => { e.preventDefault(); onNavigate(item.id) }}
+            >
+              {item.label}
+            </a>
+          ))}
+        </nav>
+
+        <button
+          className="theme-toggle"
+          data-theme-toggle
+          onClick={onThemeToggle}
+          aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+        >
+          {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+        </button>
+      </div>
     </header>
   )
 }
