@@ -86,8 +86,8 @@ create table if not exists public.injustice_scores (
   hate_score          numeric(8,4) not null,
   performance_pctile  numeric(5,2) not null,
   expectation_score   numeric(8,4) not null,
-  injustice_score     numeric(8,4) not null,   -- hate_score - expectation_score
-  bias_gap            numeric(8,4) not null,   -- injustice normalised -100 to +100
+  injustice_score     numeric(8,4) not null,  -- hate_score minus expectation_score (higher = more unjust)
+  bias_gap            numeric(8,4) not null,  -- injustice_score normalised to a -100..+100 scale
   sample_days         int default 7
 );
 
@@ -96,14 +96,14 @@ create table if not exists public.injustice_scores (
 -- Sample negative posts linked to a player for display.
 -- ------------------------------------------------------------
 create table if not exists public.evidence_posts (
-  id          uuid primary key default uuid_generate_v4(),
-  player_id   uuid not null references public.players(id) on delete cascade,
-  source      text not null,                  -- "twitter", "reddit", "youtube"
-  post_text   text not null,
-  sentiment   text not null,                  -- "negative", "positive", "neutral"
-  abuse_score numeric(5,4) default 0,
-  posted_at   timestamptz,
-  collected_at timestamptz default now()
+  id             uuid primary key default uuid_generate_v4(),
+  player_id      uuid not null references public.players(id) on delete cascade,
+  source         text not null,                  -- "twitter", "reddit", "youtube"
+  content        text not null,                  -- was post_text; renamed to match frontend
+  sentiment_label text not null,                 -- was sentiment; renamed to match frontend ("negative", "positive", "neutral")
+  abuse_score    numeric(5,4) default 0,
+  posted_at      timestamptz,
+  created_at     timestamptz default now()       -- was collected_at
 );
 
 -- ------------------------------------------------------------
@@ -117,7 +117,12 @@ create index if not exists idx_players_slug         on public.players(slug);
 create index if not exists idx_evidence_player      on public.evidence_posts(player_id, posted_at desc);
 
 -- ------------------------------------------------------------
--- Row Level Security (RLS) — public read, no anonymous writes
+-- Row Level Security (RLS) — public read, service-role writes
+-- Note: the ingestion pipeline MUST use the service-role key
+--       (SUPABASE_SERVICE_ROLE_KEY), NOT the anon key, so that
+--       the INSERT policies below are satisfied via the
+--       authenticated role bypass. Never expose service-role
+--       credentials in client-side code.
 -- ------------------------------------------------------------
 alter table public.players               enable row level security;
 alter table public.player_season_stats   enable row level security;
@@ -125,6 +130,7 @@ alter table public.social_mentions_daily enable row level security;
 alter table public.injustice_scores      enable row level security;
 alter table public.evidence_posts        enable row level security;
 
+-- Public SELECT
 create policy "Public read players"
   on public.players for select using (true);
 
@@ -139,3 +145,33 @@ create policy "Public read injustice"
 
 create policy "Public read evidence"
   on public.evidence_posts for select using (true);
+
+-- Service-role INSERT (ingestion pipeline)
+create policy "Service role insert players"
+  on public.players for insert
+  to service_role with check (true);
+
+create policy "Service role insert stats"
+  on public.player_season_stats for insert
+  to service_role with check (true);
+
+create policy "Service role insert social"
+  on public.social_mentions_daily for insert
+  to service_role with check (true);
+
+create policy "Service role insert injustice"
+  on public.injustice_scores for insert
+  to service_role with check (true);
+
+create policy "Service role insert evidence"
+  on public.evidence_posts for insert
+  to service_role with check (true);
+
+-- Service-role UPDATE (upsert support for ingestion)
+create policy "Service role update social"
+  on public.social_mentions_daily for update
+  to service_role using (true) with check (true);
+
+create policy "Service role update injustice"
+  on public.injustice_scores for update
+  to service_role using (true) with check (true);
